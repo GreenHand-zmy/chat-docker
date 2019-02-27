@@ -1,0 +1,56 @@
+version: '3'
+services:
+  db-prod:
+    image: 'mysql:5.7'
+    restart: always
+    container_name: mysql-prod
+    environment:
+      MYSQL_ROOT_PASSWORD: '123456'
+    networks:
+      - network1
+    user: root
+    volumes:
+      # 存放mysql数据
+      - ./mysql/data:/var/lib/mysql
+      # 自定义mysql配置
+      - ./mysql/conf:/etc/mysql/conf.d
+      # 启动数据库初始化sql
+      - ./api/sql:/docker-entrypoint-initdb.d/
+    ports:
+      - '3306:3306'
+  fdfs:
+    image: 'peterzhang96/fdfs:1.0'
+    container_name: fdfs
+    volumes:
+      - ./fastdfs/conf/fdfs:/etc/fdfs
+      - ./fastdfs/conf/nginx:/etc/nginx
+      - ./fastdfs/data:/home/fdfs/data
+      - ./fastdfs/log:/home/fdfs/log
+    ports:
+      - '22122:22122'
+      - '23000:23000'
+      - '8888:8888'
+    network_mode: "host"
+    command:
+        - /bin/sh
+        - -c
+        - |
+            /usr/bin/fdfs_trackerd /etc/fdfs/tracker.conf \
+            && /usr/bin/fdfs_storaged /etc/fdfs/storage.conf \
+            && /home/nginx/sbin/nginx -c /etc/nginx/nginx.conf && tail -f /dev/null
+  api:
+    image: 'peterzhang96/api:1.0'
+    container_name: api
+    ports:
+      - '8080:8080'
+      - '8090:8090'
+    networks:
+      - network1
+    volumes:
+      - ./api/log:/log
+    depends_on:
+      - db-prod
+      - fdfs
+networks:
+  network1:
+    driver: bridge
